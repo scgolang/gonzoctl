@@ -7,19 +7,30 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	"github.com/scgolang/nsm"
 	"github.com/scgolang/osc"
+)
+
+// Sentinel errors.
+var (
+	ErrDone = errors.New("done")
 )
 
 // App holds the state for the application.
 type App struct {
 	Config
 	osc.Conn
+
+	replies chan *osc.Message
 }
+
+type cmdFunc func(args []string) error
 
 // NewApp creates a new application.
 func NewApp(config Config) (*App, error) {
-	app := &App{Config: config}
+	app := &App{
+		Config:  config,
+		replies: make(chan *osc.Message),
+	}
 	if err := app.initialize(); err != nil {
 		return nil, errors.Wrap(err, "could not initialize app")
 	}
@@ -28,6 +39,7 @@ func NewApp(config Config) (*App, error) {
 
 // initialize initializes the application.
 func (app *App) initialize() error {
+	// Initialize the OSC connection.
 	a := net.JoinHostPort(app.Host, strconv.Itoa(app.Port))
 	addr, err := net.ResolveUDPAddr("udp", a)
 	if err != nil {
@@ -38,40 +50,33 @@ func (app *App) initialize() error {
 		return errors.Wrap(err, "could not listen on udp")
 	}
 	app.Conn = conn
+
 	return nil
 }
 
-// Add tells gonzo to add a client.
-func (app *App) Add(args []string) error {
-	if len(args) != 1 {
-		return errors.New("add takes exactly one arg")
+// commands returns a map from command names to the functions that handle the commands.
+func (app *App) commands() map[string]cmdFunc {
+	return map[string]cmdFunc{
+		"add": app.Add,
+		"ls":  app.ListProjects,
 	}
-
-	msg, err := osc.NewMessage(nsm.AddressServerAdd)
-	if err != nil {
-		return errors.Wrap(err, "could not create osc message")
-	}
-
-	progname := args[0]
-	if err := msg.WriteString(progname); err != nil {
-		return errors.Wrap(err, "could not add progname to message")
-	}
-	if err := app.Send(msg); err != nil {
-		return errors.Wrap(err, "could not send add message")
-	}
-	return nil
 }
 
 // Run runs the application.
 func (app *App) Run() error {
+	defer close(app.replies)
+
 	args := app.flags.Args()
 	if len(args) == 0 {
 		return fmt.Errorf("%s needs a command", os.Args[0])
 	}
-	command := args[0]
-	switch command {
-	case "add":
-		return app.Add(args[1:])
+	var (
+		command  = args[0]
+		commands = app.commands()
+	)
+	run, ok := commands[command]
+	if !ok {
+		return errors.New("unrecognized command: " + command)
 	}
-	return nil
+	return errors.Wrapf(run(args[1:]), "running command %s", command)
 }
