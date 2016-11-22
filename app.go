@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/scgolang/osc"
+	"golang.org/x/sync/errgroup"
 )
 
 // Sentinel errors.
@@ -41,11 +43,15 @@ func NewApp(config Config) (*App, error) {
 func (app *App) initialize() error {
 	// Initialize the OSC connection.
 	a := net.JoinHostPort(app.Host, strconv.Itoa(app.Port))
-	addr, err := net.ResolveUDPAddr("udp", a)
+	raddr, err := net.ResolveUDPAddr("udp", a)
 	if err != nil {
-		return errors.Wrap(err, "could not resolve udp address")
+		return errors.Wrap(err, "could not resolve remote udp address")
 	}
-	conn, err := osc.DialUDP("udp", nil, addr)
+	laddr, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
+	if err != nil {
+		return errors.Wrap(err, "could not resolve local udp address")
+	}
+	conn, err := osc.DialUDP("udp", laddr, raddr)
 	if err != nil {
 		return errors.Wrap(err, "could not listen on udp")
 	}
@@ -62,10 +68,38 @@ func (app *App) commands() map[string]cmdFunc {
 	}
 }
 
+// dispatcher returns an osc dispatcher that handles replies from gonzo.
+func (app *App) dispatcher() osc.Dispatcher {
+	return osc.Dispatcher{
+		"/reply": func(msg *osc.Message) error {
+			log.Println("received reply")
+			app.replies <- msg
+			return nil
+		},
+	}
+}
+
+// ServeOSC listens for osc methods to be invoked.
+func (app *App) ServeOSC() error {
+	return app.Serve(app.dispatcher())
+}
+
 // Run runs the application.
 func (app *App) Run() error {
 	defer close(app.replies)
 
+	var eg errgroup.Group
+
+	eg.Go(app.ServeOSC)
+	eg.Go(app.run)
+
+	log.Printf("initialized connection laddr=%s raddr=%s\n", app.LocalAddr(), app.RemoteAddr())
+
+	return eg.Wait()
+}
+
+// run runs the command we have invoked.
+func (app *App) run() error {
 	args := app.flags.Args()
 	if len(args) == 0 {
 		return fmt.Errorf("%s needs a command", os.Args[0])
