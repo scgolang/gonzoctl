@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
+	"github.com/scgolang/nsm"
 	"github.com/scgolang/osc"
 	"golang.org/x/sync/errgroup"
 )
@@ -71,7 +72,7 @@ func (app *App) commands() map[string]cmdFunc {
 // dispatcher returns an osc dispatcher that handles replies from gonzo.
 func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
-		"/reply": func(msg *osc.Message) error {
+		nsm.AddressReply: func(msg *osc.Message) error {
 			app.debug("received reply")
 			app.replies <- msg
 			return nil
