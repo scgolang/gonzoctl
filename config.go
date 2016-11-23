@@ -10,9 +10,10 @@ import (
 
 // Config holds the application's configuration.
 type Config struct {
-	Host    string
-	Port    int
-	Timeout time.Duration
+	Host    string        `json:"host"`
+	Port    int           `json:"port"`
+	Timeout time.Duration `json:"timeout"`
+	Debug   bool          `json:"debug"`
 
 	flags *flag.FlagSet
 }
@@ -30,6 +31,7 @@ func NewConfig() (Config, error) {
 	fs.StringVar(&config.Host, "host", "127.0.0.1", "Remote host")
 	fs.IntVar(&config.Port, "port", 56070, "Remote port")
 	fs.DurationVar(&config.Timeout, "timeout", defaultTimeout, "Timeout for replies from gonzo server")
+	fs.BoolVar(&config.Debug, "debug", false, "Print debugging information")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return config, errors.Wrap(err, "could not parse config")

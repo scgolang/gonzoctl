@@ -72,7 +72,7 @@ func (app *App) commands() map[string]cmdFunc {
 func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
 		"/reply": func(msg *osc.Message) error {
-			log.Println("received reply")
+			app.debug("received reply")
 			app.replies <- msg
 			return nil
 		},
@@ -93,7 +93,7 @@ func (app *App) Run() error {
 	eg.Go(app.ServeOSC)
 	eg.Go(app.run)
 
-	log.Printf("initialized connection laddr=%s raddr=%s\n", app.LocalAddr(), app.RemoteAddr())
+	app.debugf("initialized connection laddr=%s raddr=%s\n", app.LocalAddr(), app.RemoteAddr())
 
 	return eg.Wait()
 }
@@ -113,4 +113,18 @@ func (app *App) run() error {
 		return errors.New("unrecognized command: " + command)
 	}
 	return errors.Wrapf(run(args[1:]), "running command %s", command)
+}
+
+// debug prints a debug message.
+func (app *App) debug(msg string) {
+	if app.Debug {
+		log.Println(msg)
+	}
+}
+
+// debugf prints a debug message with printf semantics.
+func (app *App) debugf(format string, args ...interface{}) {
+	if app.Debug {
+		log.Printf(format, args...)
+	}
 }

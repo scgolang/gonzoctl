@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,11 +21,12 @@ func (app *App) ListProjects(args []string) error {
 	for {
 		timeout := time.After(app.Timeout)
 
-		log.Println("waiting for reply")
+		app.debug("waiting for reply")
 
 		select {
 		case reply := <-app.replies:
-			log.Println("got reply")
+			app.debug("got reply")
+
 			if err := app.printProjectFrom(reply); err != nil {
 				if err == ErrDone {
 					return nil
