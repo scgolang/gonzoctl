@@ -11,11 +11,9 @@ import (
 
 // ListProjects lists the projects managed by a gonzo server.
 func (app *App) ListProjects(args []string) error {
-	msg, err := osc.NewMessage(nsm.AddressServerList)
-	if err != nil {
-		return errors.Wrap(err, "create osc message")
-	}
-	if err := app.Send(msg); err != nil {
+	if err := app.Send(osc.Message{
+		Address: nsm.AddressServerList,
+	}); err != nil {
 		return errors.Wrap(err, "sending message")
 	}
 	for {
@@ -41,15 +39,18 @@ func (app *App) ListProjects(args []string) error {
 }
 
 // printProjectFrom prints a project from an OSC reply to /nsm/server/list
-func (app *App) printProjectFrom(msg *osc.Message) error {
-	addr, err := msg.ReadString()
+func (app *App) printProjectFrom(msg osc.Message) error {
+	if len(msg.Arguments) < 2 {
+		return errors.New("expected two arguments")
+	}
+	addr, err := msg.Arguments[0].ReadString()
 	if err != nil {
 		return errors.Wrap(err, "reading reply address from osc message")
 	}
 	if addr != nsm.AddressServerList {
 		// TODO: requeue message
 	}
-	project, err := msg.ReadString()
+	project, err := msg.Arguments[1].ReadString()
 	if err != nil {
 		return errors.Wrap(err, "reading project from osc message")
 	}

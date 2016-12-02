@@ -23,7 +23,7 @@ type App struct {
 	Config
 	osc.Conn
 
-	replies chan *osc.Message
+	replies chan osc.Message
 }
 
 type cmdFunc func(args []string) error
@@ -32,7 +32,7 @@ type cmdFunc func(args []string) error
 func NewApp(config Config) (*App, error) {
 	app := &App{
 		Config:  config,
-		replies: make(chan *osc.Message),
+		replies: make(chan osc.Message),
 	}
 	if err := app.initialize(); err != nil {
 		return nil, errors.Wrap(err, "could not initialize app")
@@ -72,7 +72,7 @@ func (app *App) commands() map[string]cmdFunc {
 // dispatcher returns an osc dispatcher that handles replies from gonzo.
 func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
-		nsm.AddressReply: func(msg *osc.Message) error {
+		nsm.AddressReply: func(msg osc.Message) error {
 			app.debug("received reply")
 			app.replies <- msg
 			return nil
