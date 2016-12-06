@@ -27,7 +27,7 @@ func (app *App) ListProjects(args []string) error {
 
 			if err := app.printProjectFrom(reply); err != nil {
 				if err == ErrDone {
-					return nil
+					return err
 				}
 				return errors.Wrap(err, "printing project")
 			}

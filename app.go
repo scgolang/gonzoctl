@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -23,15 +24,22 @@ type App struct {
 	Config
 	osc.Conn
 
+	ctx     context.Context
+	group   *errgroup.Group
 	replies chan osc.Message
 }
 
 type cmdFunc func(args []string) error
 
 // NewApp creates a new application.
-func NewApp(config Config) (*App, error) {
+func NewApp(ctx context.Context, config Config) (*App, error) {
+	g, gctx := errgroup.WithContext(ctx)
+
 	app := &App{
-		Config:  config,
+		Config: config,
+
+		ctx:     gctx,
+		group:   g,
 		replies: make(chan osc.Message),
 	}
 	if err := app.initialize(); err != nil {
@@ -52,13 +60,27 @@ func (app *App) initialize() error {
 	if err != nil {
 		return errors.Wrap(err, "could not resolve local udp address")
 	}
-	conn, err := osc.DialUDP("udp", laddr, raddr)
+	conn, err := osc.DialUDPContext(app.ctx, "udp", laddr, raddr)
 	if err != nil {
 		return errors.Wrap(err, "could not listen on udp")
 	}
 	app.Conn = conn
 
 	return nil
+}
+
+// Go runs a new goroutine as part of an errgroup.Group
+func (app *App) Go(f func() error) {
+	app.group.Go(f)
+}
+
+// Wait waits for all the goroutines in an errgroup.Group
+func (app *App) Wait() error {
+	err := app.group.Wait()
+	if err == ErrDone {
+		return nil
+	}
+	return err
 }
 
 // commands returns a map from command names to the functions that handle the commands.
@@ -89,14 +111,12 @@ func (app *App) ServeOSC() error {
 func (app *App) Run() error {
 	defer close(app.replies)
 
-	var eg errgroup.Group
-
-	eg.Go(app.ServeOSC)
-	eg.Go(app.run)
+	app.Go(app.ServeOSC)
+	app.Go(app.run)
 
 	app.debugf("initialized connection laddr=%s raddr=%s\n", app.LocalAddr(), app.RemoteAddr())
 
-	return eg.Wait()
+	return app.Wait()
 }
 
 // run runs the command we have invoked.
@@ -113,7 +133,13 @@ func (app *App) run() error {
 	if !ok {
 		return errors.New("unrecognized command: " + command)
 	}
-	return errors.Wrapf(run(args[1:]), "running command %s", command)
+	return run(args[1:])
+}
+
+// Close closes the app.
+func (app *App) Close() error {
+	close(app.replies)
+	return app.Conn.Close()
 }
 
 // debug prints a debug message.
