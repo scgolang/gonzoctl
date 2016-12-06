@@ -1,0 +1,18 @@
+hash: abb645d68a9374bcef09a0386b93c69ddb2f8381acbe90cba2b5ba996b10bfa4
+updated: 2016-12-05T20:21:00.64068737-06:00
+imports:
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+- name: github.com/scgolang/nsm
+  version: e3758168f5d088862de565f678bd3c5c3d68f77d
+- name: github.com/scgolang/osc
+  version: 7d8500324cb97d0db8a0e9834fc19799a79637c6
+- name: golang.org/x/net
+  version: 4a1c855a052c2bad0e019ccfe8193a33d77adf5e
+  subpackages:
+  - context
+- name: golang.org/x/sync
+  version: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
+  subpackages:
+  - errgroup
+testImports: []
