@@ -8,6 +8,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// DefaultPort is the default gonzo port.
+	DefaultPort = 56070
+)
+
 // Config holds the application's configuration.
 type Config struct {
 	Host    string        `json:"host"`
@@ -29,7 +34,7 @@ func NewConfig() (Config, error) {
 	defaultTimeout, _ := time.ParseDuration("10s") // Never fails
 
 	fs.StringVar(&config.Host, "host", "127.0.0.1", "Remote host")
-	fs.IntVar(&config.Port, "port", 56070, "Remote port")
+	fs.IntVar(&config.Port, "port", DefaultPort, "Remote port")
 	fs.DurationVar(&config.Timeout, "timeout", defaultTimeout, "Timeout for replies from gonzo server")
 	fs.BoolVar(&config.Debug, "debug", false, "Print debugging information")
 

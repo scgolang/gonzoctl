@@ -24,6 +24,7 @@ type App struct {
 	Config
 	osc.Conn
 
+	cancel  context.CancelFunc
 	ctx     context.Context
 	group   *errgroup.Group
 	replies chan osc.Message
@@ -33,11 +34,13 @@ type cmdFunc func(args []string) error
 
 // NewApp creates a new application.
 func NewApp(ctx context.Context, config Config) (*App, error) {
-	g, gctx := errgroup.WithContext(ctx)
+	cctx, cancel := context.WithCancel(ctx)
+	g, gctx := errgroup.WithContext(cctx)
 
 	app := &App{
 		Config: config,
 
+		cancel:  cancel,
 		ctx:     gctx,
 		group:   g,
 		replies: make(chan osc.Message),
@@ -46,6 +49,123 @@ func NewApp(ctx context.Context, config Config) (*App, error) {
 		return nil, errors.Wrap(err, "could not initialize app")
 	}
 	return app, nil
+}
+
+// Close closes the app.
+func (app *App) Close() error {
+	close(app.replies)
+	return app.Conn.Close()
+}
+
+// Error handles error replies from gonzo.
+func (app *App) Error(msg osc.Message) error {
+	if len(msg.Arguments) != 3 {
+		return errors.New("expected 3 arguments for error message")
+	}
+	address, err := msg.Arguments[0].ReadString()
+	if err != nil {
+		return errors.Wrap(err, "reading address in error message")
+	}
+	code, err := msg.Arguments[1].ReadInt32()
+	if err != nil {
+		return errors.Wrap(err, "reading code in error message")
+	}
+	errmsg, err := msg.Arguments[2].ReadString()
+	if err != nil {
+		return errors.Wrap(err, "reading errmsg in error message")
+	}
+	app.debugf("received error: address=%s code=%d message=%s", address, code, errmsg)
+	return nil
+}
+
+// Go runs a new goroutine as part of an errgroup.Group
+func (app *App) Go(f func() error) {
+	app.group.Go(f)
+}
+
+// Ping sends a ping message.
+func (app *App) Ping(args []string) error {
+	return errors.Wrap(app.Send(osc.Message{Address: "/ping"}), "sending ping")
+}
+
+// Pong handles ping responses from gonzo.
+func (app *App) Pong(msg osc.Message) error {
+	fmt.Println("pong")
+	return nil
+}
+
+// Reply handles replies from gonzo.
+func (app *App) Reply(msg osc.Message) error {
+	app.debug("received reply")
+	app.replies <- msg
+	return nil
+}
+
+// Run runs the application.
+func (app *App) Run() error {
+	defer close(app.replies)
+
+	app.Go(app.ServeOSC)
+	app.Go(app.run)
+
+	app.debugf("initialized connection laddr=%s raddr=%s\n", app.LocalAddr(), app.RemoteAddr())
+
+	return app.Wait()
+}
+
+// ServeOSC listens for osc methods to be invoked.
+func (app *App) ServeOSC() error {
+	return app.Serve(app.dispatcher())
+}
+
+// Wait waits for all the goroutines in an errgroup.Group
+func (app *App) Wait() error {
+	err := app.group.Wait()
+	if err == ErrDone {
+		return nil
+	}
+	return err
+}
+
+// WithCancel returns an osc method that calls the provided osc method and then cancels the app.
+func (app *App) WithCancel(m osc.Method) osc.Method {
+	return func(msg osc.Message) error {
+		err := m(msg)
+		app.cancel()
+		return err
+	}
+}
+
+// commands returns a map from command names to the functions that handle the commands.
+func (app *App) commands() map[string]cmdFunc {
+	return map[string]cmdFunc{
+		"add":  app.Add,
+		"ls":   app.ListProjects,
+		"ping": app.Ping,
+	}
+}
+
+// debug prints a debug message.
+func (app *App) debug(msg string) {
+	if app.Debug {
+		log.Println(msg)
+	}
+}
+
+// debugf prints a debug message with printf semantics.
+func (app *App) debugf(format string, args ...interface{}) {
+	if app.Debug {
+		log.Printf(format, args...)
+	}
+}
+
+// dispatcher returns an osc dispatcher that handles replies from gonzo.
+func (app *App) dispatcher() osc.Dispatcher {
+	return osc.Dispatcher{
+		nsm.AddressError: app.WithCancel(app.Error),
+		"/pong":          app.WithCancel(app.Pong),
+		nsm.AddressReply: app.WithCancel(app.Reply),
+	}
 }
 
 // initialize initializes the application.
@@ -69,56 +189,6 @@ func (app *App) initialize() error {
 	return nil
 }
 
-// Go runs a new goroutine as part of an errgroup.Group
-func (app *App) Go(f func() error) {
-	app.group.Go(f)
-}
-
-// Wait waits for all the goroutines in an errgroup.Group
-func (app *App) Wait() error {
-	err := app.group.Wait()
-	if err == ErrDone {
-		return nil
-	}
-	return err
-}
-
-// commands returns a map from command names to the functions that handle the commands.
-func (app *App) commands() map[string]cmdFunc {
-	return map[string]cmdFunc{
-		"add": app.Add,
-		"ls":  app.ListProjects,
-	}
-}
-
-// dispatcher returns an osc dispatcher that handles replies from gonzo.
-func (app *App) dispatcher() osc.Dispatcher {
-	return osc.Dispatcher{
-		nsm.AddressReply: func(msg osc.Message) error {
-			app.debug("received reply")
-			app.replies <- msg
-			return nil
-		},
-	}
-}
-
-// ServeOSC listens for osc methods to be invoked.
-func (app *App) ServeOSC() error {
-	return app.Serve(app.dispatcher())
-}
-
-// Run runs the application.
-func (app *App) Run() error {
-	defer close(app.replies)
-
-	app.Go(app.ServeOSC)
-	app.Go(app.run)
-
-	app.debugf("initialized connection laddr=%s raddr=%s\n", app.LocalAddr(), app.RemoteAddr())
-
-	return app.Wait()
-}
-
 // run runs the command we have invoked.
 func (app *App) run() error {
 	args := app.flags.Args()
@@ -134,24 +204,4 @@ func (app *App) run() error {
 		return errors.New("unrecognized command: " + command)
 	}
 	return run(args[1:])
-}
-
-// Close closes the app.
-func (app *App) Close() error {
-	close(app.replies)
-	return app.Conn.Close()
-}
-
-// debug prints a debug message.
-func (app *App) debug(msg string) {
-	if app.Debug {
-		log.Println(msg)
-	}
-}
-
-// debugf prints a debug message with printf semantics.
-func (app *App) debugf(format string, args ...interface{}) {
-	if app.Debug {
-		log.Printf(format, args...)
-	}
 }
