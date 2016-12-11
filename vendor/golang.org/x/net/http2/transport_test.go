@@ -2073,10 +2073,11 @@ func TestTransportHandlerBodyClose(t *testing.T) {
 
 // https://golang.org/issue/15930
 func TestTransportFlowControl(t *testing.T) {
-	const (
-		total  = 100 << 20 // 100MB
-		bufLen = 1 << 16
-	)
+	const bufLen = 64 << 10
+	var total int64 = 100 << 20 // 100MB
+	if testing.Short() {
+		total = 10 << 20
+	}
 
 	var wrote int64 // updated atomically
 	st := newServerTester(t, func(w http.ResponseWriter, r *http.Request) {
@@ -2747,7 +2748,6 @@ func TestTransportCancelDataResponseRace(t *testing.T) {
 }
 
 func TestTransportRetryAfterGOAWAY(t *testing.T) {
-	t.Skip("to be unskipped by https://go-review.googlesource.com/c/33971/")
 	var dialer struct {
 		sync.Mutex
 		count int
@@ -2765,6 +2765,9 @@ func TestTransportRetryAfterGOAWAY(t *testing.T) {
 		dialer.Lock()
 		defer dialer.Unlock()
 		dialer.count++
+		if dialer.count == 3 {
+			return nil, errors.New("unexpected number of dials")
+		}
 		cc, err := net.Dial("tcp", ln.Addr().String())
 		if err != nil {
 			return nil, fmt.Errorf("dial error: %v", err)
@@ -2797,9 +2800,19 @@ func TestTransportRetryAfterGOAWAY(t *testing.T) {
 	go func() {
 		req, _ := http.NewRequest("GET", "https://dummy.tld/", nil)
 		res, err := tr.RoundTrip(req)
-		t.Logf("client got %T, %v", res, err)
+		if res != nil {
+			res.Body.Close()
+			if got := res.Header.Get("Foo"); got != "bar" {
+				err = fmt.Errorf("foo header = %q; want bar", got)
+			}
+		}
+		if err != nil {
+			err = fmt.Errorf("RoundTrip: %v", err)
+		}
 		errs <- err
 	}()
+
+	connToClose := make(chan io.Closer, 2)
 
 	// Server for the first request.
 	go func() {
@@ -2810,6 +2823,7 @@ func TestTransportRetryAfterGOAWAY(t *testing.T) {
 			return
 		}
 
+		connToClose <- ct.cc
 		ct.greet()
 		hf, err := ct.firstHeaders()
 		if err != nil {
@@ -2821,7 +2835,6 @@ func TestTransportRetryAfterGOAWAY(t *testing.T) {
 			errs <- fmt.Errorf("server1 failed writing GOAWAY: %v", err)
 			return
 		}
-		ct.cc.(*net.TCPConn).Close()
 		errs <- nil
 	}()
 
@@ -2834,17 +2847,19 @@ func TestTransportRetryAfterGOAWAY(t *testing.T) {
 			return
 		}
 
+		connToClose <- ct.cc
 		ct.greet()
 		hf, err := ct.firstHeaders()
 		if err != nil {
 			errs <- fmt.Errorf("server2 failed reading HEADERS: %v", err)
 			return
 		}
-		t.Logf("server2 Got %v", hf)
+		t.Logf("server2 got %v", hf)
 
 		var buf bytes.Buffer
 		enc := hpack.NewEncoder(&buf)
 		enc.WriteField(hpack.HeaderField{Name: ":status", Value: "200"})
+		enc.WriteField(hpack.HeaderField{Name: "foo", Value: "bar"})
 		err = ct.fr.WriteHeaders(HeadersFrameParam{
 			StreamID:      hf.StreamID,
 			EndHeaders:    true,
@@ -2852,7 +2867,7 @@ func TestTransportRetryAfterGOAWAY(t *testing.T) {
 			BlockFragment: buf.Bytes(),
 		})
 		if err != nil {
-			errs <- fmt.Errorf("server2 failed writin responseg HEADERS: %v", err)
+			errs <- fmt.Errorf("server2 failed writing response HEADERS: %v", err)
 		} else {
 			errs <- nil
 		}
@@ -2866,6 +2881,36 @@ func TestTransportRetryAfterGOAWAY(t *testing.T) {
 			}
 		case <-time.After(1 * time.Second):
 			t.Errorf("timed out")
+		}
+	}
+
+	for {
+		select {
+		case c := <-connToClose:
+			c.Close()
+		default:
+			return
+		}
+	}
+}
+
+func TestAuthorityAddr(t *testing.T) {
+	tests := []struct {
+		scheme, authority string
+		want              string
+	}{
+		{"http", "foo.com", "foo.com:80"},
+		{"https", "foo.com", "foo.com:443"},
+		{"https", "foo.com:1234", "foo.com:1234"},
+		{"https", "1.2.3.4:1234", "1.2.3.4:1234"},
+		{"https", "1.2.3.4", "1.2.3.4:443"},
+		{"https", "[::1]:1234", "[::1]:1234"},
+		{"https", "[::1]", "[::1]:443"},
+	}
+	for _, tt := range tests {
+		got := authorityAddr(tt.scheme, tt.authority)
+		if got != tt.want {
+			t.Errorf("authorityAddr(%q, %q) = %q; want %q", tt.scheme, tt.authority, got, tt.want)
 		}
 	}
 }
