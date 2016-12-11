@@ -24,9 +24,11 @@ type App struct {
 	Config
 	osc.Conn
 
-	cancel  context.CancelFunc
-	ctx     context.Context
-	group   *errgroup.Group
+	cancel context.CancelFunc
+	ctx    context.Context
+	group  *errgroup.Group
+
+	errors  chan Error
 	replies chan osc.Message
 }
 
@@ -40,9 +42,11 @@ func NewApp(ctx context.Context, config Config) (*App, error) {
 	app := &App{
 		Config: config,
 
-		cancel:  cancel,
-		ctx:     gctx,
-		group:   g,
+		cancel: cancel,
+		ctx:    gctx,
+		group:  g,
+
+		errors:  make(chan Error),
 		replies: make(chan osc.Message),
 	}
 	if err := app.initialize(); err != nil {
@@ -53,6 +57,7 @@ func NewApp(ctx context.Context, config Config) (*App, error) {
 
 // Close closes the app.
 func (app *App) Close() error {
+	close(app.errors)
 	close(app.replies)
 	return app.Conn.Close()
 }
@@ -74,6 +79,7 @@ func (app *App) Error(msg osc.Message) error {
 	if err != nil {
 		return errors.Wrap(err, "reading errmsg in error message")
 	}
+	app.errors <- NewError(nsm.NewError(nsm.Code(code), errmsg), address)
 	app.debugf("received error: address=%s code=%d message=%s", address, code, errmsg)
 	return nil
 }
@@ -96,15 +102,17 @@ func (app *App) Pong(msg osc.Message) error {
 
 // Reply handles replies from gonzo.
 func (app *App) Reply(msg osc.Message) error {
-	app.debug("received reply")
+	addr, err := msg.Arguments[0].ReadString()
+	if err != nil {
+		return errors.Wrap(err, "reading first argument of reply")
+	}
+	app.debugf("received reply for %s", addr)
 	app.replies <- msg
 	return nil
 }
 
 // Run runs the application.
 func (app *App) Run() error {
-	defer close(app.replies)
-
 	app.Go(app.ServeOSC)
 	app.Go(app.run)
 
@@ -115,7 +123,11 @@ func (app *App) Run() error {
 
 // ServeOSC listens for osc methods to be invoked.
 func (app *App) ServeOSC() error {
-	return app.Serve(app.dispatcher())
+	if err := app.Serve(app.dispatcher()); err != nil {
+		app.debugf("ServeOSC error %s", err)
+		return err
+	}
+	return nil
 }
 
 // Wait waits for all the goroutines in an errgroup.Group
@@ -142,6 +154,7 @@ func (app *App) commands() map[string]cmdFunc {
 		"add":  app.Add,
 		"ls":   app.ListProjects,
 		"ping": app.Ping,
+		"ps":   app.ListClients,
 	}
 }
 
@@ -162,9 +175,12 @@ func (app *App) debugf(format string, args ...interface{}) {
 // dispatcher returns an osc dispatcher that handles replies from gonzo.
 func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
-		nsm.AddressError: app.WithCancel(app.Error),
+		// nsm.AddressError: app.WithCancel(app.Error),
+		// "/pong":          app.WithCancel(app.Pong),
+		// nsm.AddressReply: app.WithCancel(app.Reply),
+		nsm.AddressError: app.Error,
 		"/pong":          app.WithCancel(app.Pong),
-		nsm.AddressReply: app.WithCancel(app.Reply),
+		nsm.AddressReply: app.Reply,
 	}
 }
 

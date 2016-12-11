@@ -18,7 +18,9 @@ func main() {
 
 	if err := app.Run(); err != nil {
 		if err != context.Canceled && err != context.DeadlineExceeded {
+			_ = app.Close()
 			log.Fatal(err)
 		}
 	}
+	_ = app.Close()
 }
