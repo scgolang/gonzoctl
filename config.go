@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
@@ -29,6 +30,7 @@ func NewConfig() (Config, error) {
 		config = Config{}
 		fs     = flag.NewFlagSet("gonzoctl", flag.ExitOnError)
 	)
+	fs.Usage = usage
 	config.flags = fs
 
 	defaultTimeout, _ := time.ParseDuration("10s") // Never fails
@@ -42,4 +44,43 @@ func NewConfig() (Config, error) {
 		return config, errors.Wrap(err, "could not parse config")
 	}
 	return config, nil
+}
+
+// usage prints a usage message to stderr.
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage:\n")
+	fmt.Fprintf(os.Stderr, "gonzoctl [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "Commands:\n")
+	fmt.Fprintf(os.Stderr, "add             Add a client to a session.\n")
+	fmt.Fprintf(os.Stderr, "help            Print this usage message.\n")
+	fmt.Fprintf(os.Stderr, "ls              List sessions.\n")
+	fmt.Fprintf(os.Stderr, "ping            Ping a gonzo server.\n")
+	fmt.Fprintf(os.Stderr, "ps              List clients attached to the current session.\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "To see usage of a single command do:\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "gonzoctl help COMMAND\n")
+	fmt.Fprintf(os.Stderr, "\n")
+}
+
+var commandUsage = map[string]func() error{}
+
+// usageCmd is for the "help" command.
+func usageCmd(args []string) error {
+	switch len(args) {
+	case 1:
+		// gonzoctl help COMMAND
+		var (
+			cmd = args[0]
+			cu  = commandUsage[cmd]
+		)
+		if cu != nil {
+			return cu()
+		}
+		return errors.New("unrecognized command: " + cmd)
+	default:
+		usage()
+	}
+	return ErrDone
 }

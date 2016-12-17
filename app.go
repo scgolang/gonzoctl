@@ -152,6 +152,7 @@ func (app *App) WithCancel(m osc.Method) osc.Method {
 func (app *App) commands() map[string]cmdFunc {
 	return map[string]cmdFunc{
 		"add":  app.Add,
+		"help": usageCmd,
 		"ls":   app.ListProjects,
 		"ping": app.Ping,
 		"ps":   app.ListClients,

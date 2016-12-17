@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -32,4 +34,20 @@ func (app *App) Add(args []string) error {
 		return err
 	}
 	return ErrDone
+}
+
+func init() {
+	commandUsage["add"] = func() error {
+		fmt.Fprintf(os.Stderr, "Add a new client to the current session.\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "gonzoctl add NAME PROGRAM\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "NAME      is the name of the new client.\n")
+		fmt.Fprintf(os.Stderr, "PROGRAM   is the path to the executable for the client.\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Example:\n")
+		fmt.Fprintf(os.Stderr, "gonzoctl add sc-servers1 sc-servers\n")
+		return ErrDone
+	}
 }
