@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -9,8 +10,8 @@ import (
 	"github.com/scgolang/osc"
 )
 
-// ListProjects lists the projects managed by a gonzo server.
-func (app *App) ListProjects(args []string) error {
+// ListSessions lists the sessions managed by a gonzo server.
+func (app *App) ListSessions(args []string) error {
 	if err := app.Send(osc.Message{
 		Address: nsm.AddressServerProjects,
 	}); err != nil {
@@ -45,14 +46,14 @@ func (app *App) printProjectFrom(msg osc.Message) error {
 	if addr != nsm.AddressServerProjects {
 		// TODO: requeue message
 	}
-	numProjects, err := msg.Arguments[1].ReadInt32()
+	numSessions, err := msg.Arguments[1].ReadInt32()
 	if err != nil {
-		return errors.Wrap(err, "reading number of projects from osc message")
+		return errors.Wrap(err, "reading number of sessions from osc message")
 	}
-	if expected, got := numProjects+2, int32(len(msg.Arguments)); expected != got {
+	if expected, got := numSessions+2, int32(len(msg.Arguments)); expected != got {
 		return errors.Errorf("expected %d arguments, got %d", expected, got)
 	}
-	for i := int32(0); i < numProjects; i++ {
+	for i := int32(0); i < numSessions; i++ {
 		project, err := msg.Arguments[i+2].ReadString()
 		if err != nil {
 			return errors.Wrap(err, "reading project from osc message")
@@ -62,4 +63,15 @@ func (app *App) printProjectFrom(msg osc.Message) error {
 		}
 	}
 	return nil
+}
+
+func init() {
+	commandUsage["ls"] = func() error {
+		fmt.Fprintf(os.Stderr, "List sessions.\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "gonzoctl ls\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		return ErrDone
+	}
 }

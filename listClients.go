@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -66,4 +67,15 @@ func (app *App) printClientFrom(msg osc.Message) error {
 		}
 	}
 	return nil
+}
+
+func init() {
+	commandUsage["lc"] = func() error {
+		fmt.Fprintf(os.Stderr, "List clients for the current session.\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "gonzoctl lc\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		return ErrDone
+	}
 }

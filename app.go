@@ -153,9 +153,9 @@ func (app *App) commands() map[string]cmdFunc {
 	return map[string]cmdFunc{
 		"add":  app.Add,
 		"help": usageCmd,
-		"ls":   app.ListProjects,
+		"lc":   app.ListClients,
+		"ls":   app.ListSessions,
 		"ping": app.Ping,
-		"ps":   app.ListClients,
 	}
 }
 
@@ -221,4 +221,15 @@ func (app *App) run() error {
 		return errors.New("unrecognized command: " + command)
 	}
 	return run(args[1:])
+}
+
+func init() {
+	commandUsage["ping"] = func() error {
+		fmt.Fprintf(os.Stderr, "Ping a gonzo server.\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "gonzoctl ping\n")
+		fmt.Fprintf(os.Stderr, "\n")
+		return ErrDone
+	}
 }

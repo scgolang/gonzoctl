@@ -15,11 +15,15 @@ func (app *App) Add(args []string) error {
 	if len(args) < 2 {
 		return errors.New("add takes exactly two arguments")
 	}
+	var (
+		name       = args[0]
+		executable = args[1]
+	)
 	if err := app.Send(osc.Message{
 		Address: nsm.AddressServerAdd,
 		Arguments: osc.Arguments{
-			osc.String(args[0]),
-			osc.String(args[1]),
+			osc.String(name),
+			osc.String(executable),
 		},
 	}); err != nil {
 		return errors.Wrap(err, "could not send add message")
