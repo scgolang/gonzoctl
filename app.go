@@ -155,6 +155,7 @@ func (app *App) commands() map[string]cmdFunc {
 		"help": usageCmd,
 		"lc":   app.ListClients,
 		"ls":   app.ListSessions,
+		"new":  app.NewSession,
 		"ping": app.Ping,
 	}
 }

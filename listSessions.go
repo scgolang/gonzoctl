@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,7 +14,7 @@ import (
 // ListSessions lists the sessions managed by a gonzo server.
 func (app *App) ListSessions(args []string) error {
 	if err := app.Send(osc.Message{
-		Address: nsm.AddressServerProjects,
+		Address: nsm.AddressServerSessions,
 	}); err != nil {
 		return errors.Wrap(err, "sending message")
 	}
@@ -25,17 +26,18 @@ func (app *App) ListSessions(args []string) error {
 	case reply := <-app.replies:
 		app.debug("got reply")
 
-		if err := app.printProjectFrom(reply); err != nil {
+		if err := app.printSessionFrom(reply); err != nil {
 			return errors.Wrap(err, "printing project")
 		}
+		return ErrDone
 	case <-timeout:
 		return errors.New("timeout")
 	}
 	return nil
 }
 
-// printProjectFrom prints a project from an OSC reply to /nsm/server/list
-func (app *App) printProjectFrom(msg osc.Message) error {
+// printSessionFrom prints a session from an OSC reply to /nsm/server/list
+func (app *App) printSessionFrom(msg osc.Message) error {
 	if len(msg.Arguments) < 2 {
 		return errors.New("expected two arguments")
 	}
@@ -43,7 +45,7 @@ func (app *App) printProjectFrom(msg osc.Message) error {
 	if err != nil {
 		return errors.Wrap(err, "reading reply address from osc message")
 	}
-	if addr != nsm.AddressServerProjects {
+	if addr != nsm.AddressServerSessions {
 		// TODO: requeue message
 	}
 	numSessions, err := msg.Arguments[1].ReadInt32()
@@ -58,7 +60,7 @@ func (app *App) printProjectFrom(msg osc.Message) error {
 		if err != nil {
 			return errors.Wrap(err, "reading project from osc message")
 		}
-		if _, err := fmt.Println(project); err != nil {
+		if _, err := fmt.Println(filepath.Base(project)); err != nil {
 			return errors.Wrap(err, "printing project")
 		}
 	}
