@@ -31,10 +31,8 @@ func (app *App) NewSession(args []string) error {
 	select {
 	case errReply := <-app.errors:
 		app.debug("got error " + errReply.Error())
-		return ErrDone
 	case reply := <-app.replies:
 		app.debug("got reply for " + reply.Address)
-		return ErrDone
 	case <-timeout:
 		return errors.New("timeout")
 	}
@@ -48,6 +46,6 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "gonzoctl new NAME\n")
 		fmt.Fprintf(os.Stderr, "\n")
-		return ErrDone
+		return nil
 	}
 }

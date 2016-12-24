@@ -14,10 +14,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Sentinel errors.
-var (
-	ErrDone = errors.New("done")
-)
+// ErrDone is an error returned by a goroutine to say that we should exit the program.
+var ErrDone = errors.New("done")
 
 // App holds the state for the application.
 type App struct {
@@ -151,11 +149,11 @@ func (app *App) WithCancel(m osc.Method) osc.Method {
 // commands returns a map from command names to the functions that handle the commands.
 func (app *App) commands() map[string]cmdFunc {
 	return map[string]cmdFunc{
-		"add":  app.Add,
-		"help": usageCmd,
-		"lc":   app.ListClients,
-		"ls":   app.ListSessions,
-		"new":  app.NewSession,
+		"add":  withDone(app.Add),
+		"help": withDone(usageCmd),
+		"lc":   withDone(app.ListClients),
+		"ls":   withDone(app.ListSessions),
+		"new":  withDone(app.NewSession),
 		"ping": app.Ping,
 	}
 }
@@ -177,9 +175,6 @@ func (app *App) debugf(format string, args ...interface{}) {
 // dispatcher returns an osc dispatcher that handles replies from gonzo.
 func (app *App) dispatcher() osc.Dispatcher {
 	return osc.Dispatcher{
-		// nsm.AddressError: app.WithCancel(app.Error),
-		// "/pong":          app.WithCancel(app.Pong),
-		// nsm.AddressReply: app.WithCancel(app.Reply),
 		nsm.AddressError: app.Error,
 		"/pong":          app.WithCancel(app.Pong),
 		nsm.AddressReply: app.Reply,
@@ -224,6 +219,17 @@ func (app *App) run() error {
 	return run(args[1:])
 }
 
+// withDone returns a cmdFunc that returns ErrDone if f returns
+// nil, and otherwise returns the error that f returns.
+func withDone(f cmdFunc) cmdFunc {
+	return func(args []string) error {
+		if err := f(args); err != nil {
+			return err
+		}
+		return ErrDone
+	}
+}
+
 func init() {
 	commandUsage["ping"] = func() error {
 		fmt.Fprintf(os.Stderr, "Ping a gonzo server.\n")
@@ -231,6 +237,6 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "gonzoctl ping\n")
 		fmt.Fprintf(os.Stderr, "\n")
-		return ErrDone
+		return nil
 	}
 }

@@ -88,5 +88,5 @@ func usageCmd(args []string) error {
 	default:
 		usage()
 	}
-	return ErrDone
+	return nil
 }

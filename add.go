@@ -32,12 +32,12 @@ func (app *App) Add(args []string) error {
 	select {
 	case <-time.After(2 * time.Second):
 		return errors.New("timeout")
-	case reply := <-app.replies:
-		app.debugf("got reply %s", reply)
 	case err := <-app.errors:
 		return err
+	case reply := <-app.replies:
+		app.debugf("got reply %s", reply)
 	}
-	return ErrDone
+	return nil
 }
 
 func init() {
@@ -52,6 +52,6 @@ func init() {
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "Example:\n")
 		fmt.Fprintf(os.Stderr, "gonzoctl add sc-servers1 sc-servers\n")
-		return ErrDone
+		return nil
 	}
 }

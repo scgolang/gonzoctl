@@ -23,15 +23,14 @@ func (app *App) ListSessions(args []string) error {
 	app.debug("waiting for reply")
 
 	select {
+	case <-timeout:
+		return errors.New("timeout")
 	case reply := <-app.replies:
 		app.debug("got reply")
 
 		if err := app.printSessionFrom(reply); err != nil {
 			return errors.Wrap(err, "printing project")
 		}
-		return ErrDone
-	case <-timeout:
-		return errors.New("timeout")
 	}
 	return nil
 }
@@ -74,6 +73,6 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "gonzoctl ls\n")
 		fmt.Fprintf(os.Stderr, "\n")
-		return ErrDone
+		return nil
 	}
 }
