@@ -37,7 +37,9 @@ func (app *App) ListSessions(args []string) error {
 
 // printSessionFrom prints a session from an OSC reply to /nsm/server/list
 func (app *App) printSessionFrom(msg osc.Message) error {
-	if len(msg.Arguments) < 2 {
+	const minNumArgs = 3
+
+	if len(msg.Arguments) < minNumArgs {
 		return errors.New("expected two arguments")
 	}
 	addr, err := msg.Arguments[0].ReadString()
@@ -51,13 +53,22 @@ func (app *App) printSessionFrom(msg osc.Message) error {
 	if err != nil {
 		return errors.Wrap(err, "reading number of sessions from osc message")
 	}
-	if expected, got := numSessions+2, int32(len(msg.Arguments)); expected != got {
+	curridx, err := msg.Arguments[2].ReadInt32()
+	if err != nil {
+		return errors.Wrap(err, "reading current session index from osc message")
+	}
+	if expected, got := numSessions+minNumArgs, int32(len(msg.Arguments)); expected != got {
 		return errors.Errorf("expected %d arguments, got %d", expected, got)
 	}
 	for i := int32(0); i < numSessions; i++ {
-		project, err := msg.Arguments[i+2].ReadString()
+		project, err := msg.Arguments[i+minNumArgs].ReadString()
 		if err != nil {
 			return errors.Wrap(err, "reading project from osc message")
+		}
+		if i == curridx {
+			fmt.Printf(" * ")
+		} else {
+			fmt.Printf("   ")
 		}
 		if _, err := fmt.Println(filepath.Base(project)); err != nil {
 			return errors.Wrap(err, "printing project")
