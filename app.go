@@ -154,6 +154,7 @@ func (app *App) commands() map[string]cmdFunc {
 		"lc":   withDone(app.ListClients),
 		"ls":   withDone(app.ListSessions),
 		"new":  withDone(app.NewSession),
+		"rm":   withDone(app.RemoveSession),
 		"ping": app.Ping,
 	}
 }

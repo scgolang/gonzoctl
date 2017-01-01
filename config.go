@@ -64,6 +64,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "ls              List sessions.\n")
 	fmt.Fprintf(os.Stderr, "new             Create a new session.\n")
 	fmt.Fprintf(os.Stderr, "ping            Ping a gonzo server.\n")
+	fmt.Fprintf(os.Stderr, "rm              Remove a session.\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "To see usage of a single command do:\n")
 	fmt.Fprintf(os.Stderr, "\n")

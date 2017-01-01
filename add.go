@@ -26,7 +26,7 @@ func (app *App) Add(args []string) error {
 			osc.String(executable),
 		},
 	}); err != nil {
-		return errors.Wrap(err, "could not send add message")
+		return errors.Wrap(err, "sending add message")
 	}
 
 	select {
