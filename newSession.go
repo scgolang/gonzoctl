@@ -24,7 +24,6 @@ func (app *App) NewSession(args []string) error {
 	}); err != nil {
 		return errors.Wrap(err, "sending message")
 	}
-	timeout := time.After(app.Timeout)
 
 	app.debug("waiting for reply")
 
@@ -33,7 +32,7 @@ func (app *App) NewSession(args []string) error {
 		app.debug("got error " + errReply.Error())
 	case reply := <-app.replies:
 		app.debug("got reply for " + reply.Address)
-	case <-timeout:
+	case <-time.After(app.Timeout):
 		return errors.New("timeout")
 	}
 	return nil

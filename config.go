@@ -61,6 +61,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "add             Add a client to the current session.\n")
 	fmt.Fprintf(os.Stderr, "help            Print this usage message.\n")
 	fmt.Fprintf(os.Stderr, "lc              List clients for the current session.\n")
+	fmt.Fprintf(os.Stderr, "logs            Get the logs of a gonzo client.\n")
 	fmt.Fprintf(os.Stderr, "ls              List sessions.\n")
 	fmt.Fprintf(os.Stderr, "new             Create a new session.\n")
 	fmt.Fprintf(os.Stderr, "ping            Ping a gonzo server.\n")
