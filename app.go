@@ -152,7 +152,7 @@ func (app *App) commands() map[string]cmdFunc {
 		"add":  withDone(app.Add),
 		"help": withDone(usageCmd),
 		"lc":   withDone(app.ListClients),
-		"logs": withDone(app.Logs),
+		"logs": withDone(app.ClientLogs),
 		"ls":   withDone(app.ListSessions),
 		"new":  withDone(app.NewSession),
 		"rm":   withDone(app.RemoveSession),

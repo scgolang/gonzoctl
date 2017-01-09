@@ -14,8 +14,8 @@ import (
 // logOutputOptions maps the CLI options for gonzoctl to the appropriate values in the gonzo OSC API.
 var logOutputOptions = map[string]int32{"stderr": 2, "stdout": 1}
 
-// Logs gets the logs of a client.
-func (app *App) Logs(args []string) error {
+// ClientLogs gets the logs of a client.
+func (app *App) ClientLogs(args []string) error {
 	if minimum, got := 1, len(args); got < minimum {
 		return errors.Errorf("expected at least %d argument(s), got %d", minimum, got)
 	}
@@ -54,7 +54,7 @@ func (app *App) Logs(args []string) error {
 	case errReply := <-app.errors:
 		app.debug("got error " + errReply.Error())
 	case reply := <-app.replies:
-		return errors.Wrap(printClientLogs(clientName, reply), "printing client logs")
+		return errors.Wrap(app.printClientLogs(clientName, reply), "printing client logs")
 	case <-time.After(app.Timeout):
 		return errors.New("timeout")
 	}
@@ -62,8 +62,10 @@ func (app *App) Logs(args []string) error {
 }
 
 // printClientLogs prints log messages for a client from an OSC message.
-func printClientLogs(expectedClientName string, msg osc.Message) error {
+func (app *App) printClientLogs(expectedClientName string, msg osc.Message) error {
 	const minimumNumArgs = 3
+
+	app.debugf("printing logs from %#v", msg)
 
 	if minimum, got := minimumNumArgs, len(msg.Arguments); got < minimum {
 		return errors.Errorf("expected at least %d arguments, got %d", minimum, got)
